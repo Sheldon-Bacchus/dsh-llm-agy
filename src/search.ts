@@ -64,9 +64,8 @@ export class AgySearchProvider implements WebSearchProvider {
   /** 执行一次 AGY 搜索。 */
   async search(request: WebSearchRequest, signal?: AbortSignal): Promise<WebSearchResult> {
     const query = request.query
-    // AGY 是完整 agent:给它正常任务,它会自己调用 search_web 搜索、打开
-    // 来源阅读全文,并综合提取总结。语言跟随用户提问,不固定。
-    const prompt = `搜索:"${query}",综合所有相关来源,给出完整、准确、详尽的回答,并在回答中引用来源。`
+    // AGY 轻量搜索:调用一次 search_web,避免深度调研耗时过长。
+    const prompt = `轻量搜索:"${query}"。调用一次 search_web，返回简短结论及最多3个真实来源链接；没有结果就明确说明，不做全网深度调研，不读取所有全文，不做重复搜索，不虚构链接。`
 
     const resultText = await runAgyText({
       command: this.options.command,

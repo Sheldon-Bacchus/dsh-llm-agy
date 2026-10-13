@@ -11,7 +11,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { SubagentResult, SubagentRun } from '@deepseek-ai/dsh-subagent'
+import type { SubagentActivation, SubagentResult } from '@deepseek-ai/dsh-subagent'
 
 /** Prompt order after bounded delegation policy and before child reporting. */
 const SECTION_ORDER = 116.5
@@ -48,7 +48,7 @@ function withPartialText(error: string, output: readonly ContentBlock[]): string
 }
 
 /** 收集并释放一次前台 run。 */
-async function settleForeground(run: SubagentRun): Promise<{ kind: 'foreground'; runId: string; output: JsonValue[] }> {
+async function settleForeground(run: SubagentActivation): Promise<{ kind: 'foreground'; runId: string; output: JsonValue[] }> {
   try {
     const result = await run.result
     const error = stopReasonError(result)
@@ -57,7 +57,7 @@ async function settleForeground(run: SubagentRun): Promise<{ kind: 'foreground';
     }
     return {
       kind: 'foreground',
-      runId: run.id,
+      runId: run.childId,
       output: result.output as unknown as JsonValue[],
     }
   } finally {
@@ -149,19 +149,23 @@ export function registerSubagentTool(ctx: Context, options: SubagentToolOptions)
           : agentOptions,
       }
       if (args.run_in_background !== false) {
-        const started = await ctx.subagents.startContinuable({
+        const activation = await ctx.subagents.startActivation({
           provider,
           label: args.description,
           request,
           signal: exec.signal,
+          delivery: 'parent',
         })
-        return { kind: 'continuable' as const, subagentId: started.childId }
+        return { kind: 'continuable' as const, subagentId: activation.childId }
       }
-      const run: SubagentRun = await ctx.subagents.start(provider, {
-        ...request,
+      const activation = await ctx.subagents.startActivation({
+        provider,
+        label: args.description,
+        request,
         signal: exec.signal,
+        delivery: 'caller',
       })
-      return await settleForeground(run)
+      return await settleForeground(activation)
     },
   }))
   ctx.systemPrompt.section({
